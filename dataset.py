@@ -82,24 +82,23 @@ class YOLOdataset(torch.utils.data.Dataset):
                 # Set one hot encoding for class_label
                 
                 label_matrix[i, j, class_label] = 1
-        print(label_matrix.shape)
+
         return image, label_matrix
 
     
 def test():
     import config
     from torch.utils.data import DataLoader
-    from utils import plot_image, cellboxes_to_boxes, non_max_suppression, cellboxes_to_boxes_test
+    from utils import plot_image, cellboxes_to_boxes, non_max_suppression
     from tqdm import tqdm
-    transform = config.test_transform
+    transform = config.train_transforms
 
     dataset = YOLOdataset(
-        img_dir='D:\\Usuarios\\Carlos\\Documentos\\MUIT\\TFM\\Code\\AirbusAircraft\\archive\\data_YOLO_256\\images',
-        label_dir="D:\\Usuarios\\Carlos\\Documentos\\MUIT\\TFM\\Code\\AirbusAircraft\\archive\\data_YOLO_256\\labels",
-        S=100,
-        B=2,
+        img_dir="../../reduceAirbus/images",
+        label_dir="../../reduceAirbus/labels",
+        S=config.SPLIT_SIZE,
         transform=transform,
-        mode = "test",
+        mode = "train",
         C=config.NUM_CLASSES,
     )
 
@@ -109,10 +108,11 @@ def test():
         boxes = []
         print(y[0].shape)
         # print(y)
-        for i in range(8):
-            bboxes = cellboxes_to_boxes_test(y, SPLIT_SIZE=100, NUM_BOXES=2, NUM_CLASSES=config.NUM_CLASSES)
+        for i in range(4):
+            bboxes = cellboxes_to_boxes(y)
         
             boxes = non_max_suppression(bboxes[i], iou_threshold=0.5, threshold=0.4, box_format="midpoint")            
+            print
             plot_image(x[i].permute(1, 2, 0).to("cpu"), boxes)
         # print(x[0])
        

@@ -109,7 +109,7 @@ class tinyissimoYOLO(nn.Module):
         return nn.Sequential(
             nn.Flatten(), # It is going to flatten the tensor, i.e., it is going to reshape the tensor
             nn.Linear(128 * S * S, 256), 
-            nn.Dropout(0.5), # toDO Dropout is used to prevent overfitting, we should put here p = 0.5
+            nn.Dropout(0.55), # toDO Dropout is used to prevent overfitting, we should put here p = 0.5
             nn.LeakyReLU(0.1), # LeakyReLU applies the element-wise function Leaky ReLU(x) = max(0, x) + negative_slope * min(0, x)
             nn.Linear(256, S * S * (C + B * 5)), # S * S * (C + B * 5) is the number of nodes in the fully connected layer
             # S * S is the size of the feature map, C is the number of classes, B is the number of boxes and 5 is the number of parameters for each box

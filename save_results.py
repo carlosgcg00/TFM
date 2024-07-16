@@ -281,28 +281,28 @@ def plot_AUC(precisions, recalls, pr_auc, epoch):
     plt.savefig(os.path.join(config.DRIVE_PATH, f"{config.BACKBONE}/{config.TOTAL_PATH}/results/AUC_best_epoch.png"))
     plt.close()  # Close the plot to ensure it doesn't interfere with the next one    
 
-def save_results_noise(perc1, slices1, nslices1,
-                       perc2, slices2, nslices2,
+def save_results_noise(total_layers_affected_1, slices1, nslices1,
+                       total_layers_affected_2, slices2, nslices2,
                        mean_loss, mAP_50, mAP_75, mAP_90, file_name='case_1.txt', folder_save_results = 'results_noise'):
     # Construct the message to be saved
-    message = f'{perc1} {slices1} {nslices1} {perc2} {slices2} {nslices2} {mAP_50:.6f} {mAP_75:.6f} {mAP_90:.6f} {mean_loss:.6f}\n'
+    message = f'{total_layers_affected_1} {slices1} {nslices1} {total_layers_affected_2} {slices2} {nslices2} {mAP_50:.6f} {mAP_75:.6f} {mAP_90:.6f} {mean_loss:.6f}\n'
 
     os.makedirs(folder_save_results, exist_ok=True)
     # Open the file in append mode if it exists, or in write mode if it doesn't exist
-    with open(os.path.join(folder_save_results, "/{file_name}"), "a+") as file:
+    with open(os.path.join(folder_save_results, file_name), "a+") as file:
         # Move the cursor to the start of the file to check if it's empty
         file.seek(0)
         # If the file is empty, write a header line
         if not file.readline():
-            file.write("Noise1, perc1, Slice1, nslices1, perc2, slice1, nslices2, mAP@50, mAP@75, mAP@90, Mean Loss\n")
+            file.write("LayersAffected1, Slice1, nslices1, LayersAffected2, Slice2, nslices2, mAP@50, mAP@75, mAP@90, Mean Loss\n")
         # Append the current results
         file.write(message)
 
-def plot_results_noise(result_name_file, folder_save_results, case1, case2):
-    noise_1 = []
+def plot_results_noise(result_name_file, folder_save_results, case1, case2, max_limit_1, max_limit_2):
+    layers_affected_1 = []
     slices1 = []
     nslices1 = []
-    noise_2 = []
+    layers_affected_2 = []
     slices2 = []
     nslices2 = []
     mAP_50 = []
@@ -310,19 +310,19 @@ def plot_results_noise(result_name_file, folder_save_results, case1, case2):
     mAP_90 = []
     mean_loss = []
 
-    with open(os.path.join(folder_save_results, "{result_name_file}")) as f:
+    with open(os.path.join(folder_save_results, result_name_file)) as f:
         i = 0
         for line in f.readlines():
             if i!=0:
                 # noise1, noise2, mAP50, mAP75, mAP90, loss = line.split(' ')
                 line.split()
-                noise1, slice1, nslices1, noise2, slice2, nslices2, mAP50, mAP75, mAP90, loss = line.split(' ')
-                noise_1.append(float(noise1))
+                n_affected_1, slice1, nslice1, n_affected_2, slice2, nslice2, mAP50, mAP75, mAP90, loss = line.split(' ')
+                layers_affected_1.append(float(n_affected_1))
                 slices1.append(int(slice1))
-                nslices1.append(int(nslices1))
-                noise_2.append(float(noise2))
+                nslices1.append(int(nslice1))
+                layers_affected_2.append(float(n_affected_2))
                 slices2.append(int(slice2))
-                nslices2.append(int(nslices2))
+                nslices2.append(int(nslice2))
                 mAP_50.append(float(mAP50))
                 mAP_75.append(float(mAP75))
                 mAP_90.append(float(mAP90))
@@ -333,118 +333,130 @@ def plot_results_noise(result_name_file, folder_save_results, case1, case2):
     if case1 and not case2:
         unique_slices1 = sorted(list(set(slices1)))
 
-        # Create subplots
-        fig, axs = plt.subplots(1, 2, figsize=(14, 6))
+        if sum(mean_loss) != 0:
+            # Create subplots
+            fig, axs = plt.subplots(1, 2, figsize=(14, 6))
 
-        # Plot Noise Level 2 vs mAP@50 for different percentages levels
-        txt_legend = []
-        for s1 in unique_slices1:
-            indices = [i for i in range(len(slices1)) if slices1[i] == s1]
-            axs[0].plot([noise_1[i] for i in indices], [mAP_50[i] for i in indices], linestyle='-', label=f'slice1={s1}')
-            txt_legend.append(f'{s1+1}/{len(unique_slices1)}')
-        axs[0].set_title("Noise Level 2 vs mAP@50 for different percentages levels")
-        axs[0].set_xlabel("Noise Level 2")
-        axs[0].set_ylabel("Mean Average Precision")
-        axs[0].legend(txt_legend, loc='lower left')
-        axs[0].grid(True)
+            # Plot Noise Level 2 vs mAP@50 for different percentages levels
+            txt_legend = []
 
-        # Plot Noise Level 2 vs Mean Loss for different percentages levels
-        txt_legend = []
-        for s1 in unique_slices1:
-            indices = [i for i in range(len(slices1)) if slices1[i] == s1]
-            axs[1].plot([noise_1[i] for i in indices], [mean_loss[i] for i in indices], linestyle='-', label=f'slice1={s1}')
-            txt_legend.append(f'{s1+1}/{len(unique_slices1)}')
-        axs[1].set_title("Noise Level 2 vs Mean Loss for different percentages levels")
-        axs[1].set_xlabel("Noise Level 2")
-        axs[1].set_ylabel("Mean Loss")
-        axs[1].set_yscale('log')
-        axs[1].legend(txt_legend, loc='lower right')
-        axs[1].grid(True)
+            for s1 in unique_slices1:
+                indices = [i for i in range(len(slices1)) if slices1[i] == s1]
+                axs[0].plot([layers_affected_1[i] for i in indices], [mAP_50[i] for i in indices], linestyle='-', label=f'slice1={s1}', marker='o')
+                txt_legend.append(f'Slice: {s1+1}/{len(unique_slices1)}, Num activation functions: {max_limit_1[s1]}')
+            axs[0].set_title("SEU Effect, mAP analysis for different percentages levels")
+            axs[0].set_xlabel("Number of activation function affected")
+            axs[0].set_ylabel("Mean Average Precision")
+            if min(mAP_50) > 0.5:
+                axs[0].set_ylim(min(mAP_50)*0.9, max(mAP_50)*1.1)
+            axs[0].legend(txt_legend, loc='upper right')
+            axs[0].grid(True)
 
-        # Adjust layout
-        plt.tight_layout()
-        plt.savefig(os.path.join(config.DRIVE_PATH, f"{config.BACKBONE}/{config.TOTAL_PATH}/results_noise/noise1_vs_metrics.png"))
-        plt.close()
+            # Plot Noise Level 1 vs Mean Loss for different percentages levels
+            txt_legend = []
+            for s1 in unique_slices1:
+                indices = [i for i in range(len(slices1)) if slices1[i] == s1]
+                axs[1].plot([layers_affected_1[i] for i in indices], [mean_loss[i] for i in indices], linestyle='-', label=f'slice1={s1}', marker='o')
+                txt_legend.append(f'Slice: {s1+1}/{len(unique_slices1)}, Num activation functions: {max_limit_1[s1]}')
+            axs[1].set_title("SEU Effect, Loss analysis for different percentages levels")
+            axs[1].set_xlabel("Number of activation function affected")
+            axs[1].set_ylabel("Mean Loss")
+            axs[1].legend(txt_legend, loc = 'upper left')# loc arriba izqda
+            axs[1].grid(True)
+
+            # Adjust layout
+            plt.tight_layout()
+            plot_file = result_name_file.replace('.txt', '.png')
+            plt.savefig(os.path.join(folder_save_results,f"{plot_file}"))
+            plt.close()
+        else:
+            #only plot map
+            plt.figure(figsize=(10, 6))
+            for s1 in unique_slices1:
+                indices = [i for i in range(len(slices1)) if slices1[i] == s1]
+                plt.plot([layers_affected_1[i] for i in indices], [mAP_50[i] for i in indices], linestyle='-', label=f'slice1={s1}', marker='o')
+            plt.title("SEU Effect, mAP analysis for different percentages levels")
+            plt.xlabel("Number of activation function affected")
+            plt.ylabel("Mean Average Precision")
+            plt.ylim(-0.05, max(mAP_50)*1.1)
+            plt.legend()
+            plt.grid(True)
+            plot_file = result_name_file.replace('.txt', '.png')
+            plt.savefig(os.path.join(folder_save_results,f"{plot_file}"))
+            plt.close()
         
 
     if case2 and not case1:
         unique_slices2 = sorted(list(set(slices2)))
 
-        # Create subplots
-        fig, axs = plt.subplots(1, 2, figsize=(14, 6))
+        if sum(mean_loss) != 0:
+            # Create subplots
+            fig, axs = plt.subplots(1, 2, figsize=(14, 6))
 
-        # Plot Noise Level 3 vs mAP@50 for different percentages levels
-        txt_legend = []
-        for s2 in unique_slices2:
-            indices = [i for i in range(len(slices2)) if slices2[i] == s2]
-            axs[0].plot([noise_2[i] for i in indices], [mAP_50[i] for i in indices], linestyle='-', label=f'slice2={s2}')
-            txt_legend.append(f'{s2+1}/{len(unique_slices2)}')
-        axs[0].set_title("Noise Level 3 vs mAP@50 for different percentages levels")
-        axs[0].set_xlabel("Noise Level 3")
-        axs[0].set_ylabel("Mean Average Precision")
-        axs[0].legend(txt_legend, loc='lower left')
-        axs[0].grid(True)
+            # Plot Noise Level 2 vs mAP@50 for different percentages levels
+            txt_legend = []
+            for s2 in unique_slices2:
+                indices = [i for i in range(len(slices2)) if slices2[i] == s2]
+                axs[0].plot([layers_affected_2[i] for i in indices], [mAP_50[i] for i in indices], linestyle='-', label=f'slice2={s2}', marker='o')
+                txt_legend.append(f'Slice: {s2+1}/{len(unique_slices2)}, Layers affected: {max_limit_2[s2]}')
+            axs[0].set_title("SEL Effect, mAP analysis for different percentages levels")
+            axs[0].set_xlabel("Number of layers affected")
+            axs[0].set_ylabel("Mean Average Precision")
+            axs[0].set_ylim(-0.05, max(mAP_50)*1.1)
+            axs[0].legend(txt_legend, loc='upper right')
+            axs[0].grid(True)
 
-        # Plot Noise Level 3 vs Mean Loss for different percentages levels
-        txt_legend = []
-        for s2 in unique_slices2:
-            indices = [i for i in range(len(slices2)) if slices2[i] == s2]
-            axs[1].plot([noise_2[i] for i in indices], [mean_loss[i] for i in indices], linestyle='-', label=f'slice2={s2}')
-            txt_legend.append(f'{s2+1}/{len(unique_slices2)}')
-        axs[1].set_title("Noise Level 3 vs Mean Loss for different percentages levels")
-        axs[1].set_xlabel("Noise Level 3")
-        axs[1].set_ylabel("Mean Loss")
-        axs[1].set_yscale('log')
-        axs[1].legend(txt_legend, loc='lower right')
-        axs[1].grid(True)
+            # Plot Noise Level 3 vs Mean Loss for different percentages levels
+            txt_legend = []
+            for s2 in unique_slices2:
+                indices = [i for i in range(len(slices2)) if slices2[i] == s2]
+                axs[1].plot([layers_affected_2[i] for i in indices], [mean_loss[i] for i in indices], linestyle='-', label=f'slice2={s2}', marker='o')
+                txt_legend.append(f'Slice: {s2+1}/{len(unique_slices2)}, Layers affected: {max_limit_2[s2]}')
+            axs[1].set_title("SEL Effect, Loss analysis for different percentages levels")
+            axs[1].set_xlabel("Number of layers affected")
+            axs[1].set_ylabel("Mean Loss")
+            axs[1].legend(txt_legend, loc='upper left')
+            axs[1].grid(True)
 
-        # Adjust layout
-        plt.tight_layout()
-        plt.savefig(os.path.join(config.DRIVE_PATH, f"{config.BACKBONE}/{config.TOTAL_PATH}/results_noise/noise2_vs_metrics.png"))
-        plt.close()
+            # Adjust layout
+            plt.tight_layout()
+            plot_file = result_name_file.replace('.txt', '.png')
+            plt.savefig(os.path.join(folder_save_results,f"{plot_file}"))
+            plt.close()
+        else:
+            #only plot map
+            plt.figure(figsize=(10, 6))
+            for s2 in unique_slices2:
+                indices = [i for i in range(len(slices2)) if slices2[i] == s2]
+                plt.plot([layers_affected_2[i] for i in indices], [mAP_50[i] for i in indices], linestyle='-', label=f'slice2={s2}', marker='o')
+            plt.title("SEL Effect, mAP analysis for different percentages levels")
+            plt.xlabel("Number of layers affected")
+            plt.ylabel("Mean Average Precision")
+            plt.ylim(-0.05, max(mAP_50)*1.1)
+            plt.legend()
+            plt.grid(True)
+            plot_file = result_name_file.replace('.txt', '.png')
+            plt.savefig(os.path.join(folder_save_results,f"{plot_file}"))
+            plt.close()
         
 
-    # if case1 and case2:
-    #     unique_noise2 = sorted(list(set(noise_2)))
-    #     plt.figure(figsize=(10, 6))
-    #     txt_legend = []
-    #     for n3 in unique_noise2:
-    #         indices = [i for i, x in enumerate(noise_2) if x == n3]
-    #         plt.plot([noise_1[i] for i in indices], [mAP_50[i] for i in indices], marker='o', linestyle='-', label=f'noise2={n3}')
-    #         txt_legend.append(f'noise2={n3}')
-    #     plt.title("Noise Level 2 vs mAP@50 for different noise2 levels")
-    #     plt.xlabel("Noise Level 2")
-    #     plt.ylabel("Mean Average Precision")
-    #     plt.legend(txt_legend, loc = 'upper right')
-    #     plt.grid(True)
-    #     plt.savefig(os.path.join(config.DRIVE_PATH, f"{config.BACKBONE}/{config.TOTAL_PATH}/results_noise/noise1_vs_mAP50_case1_case2.png"))
-    #     plt.close()
 
-    #     plt.figure(figsize=(10, 6))
-    #     txt_legend = []
-    #     for n3 in unique_noise2:
-    #         indices = [i for i, x in enumerate(noise_2) if x == n3]
-    #         plt.plot([noise_1[i] for i in indices], [mean_loss[i] for i in indices], marker='o', linestyle='-', label=f'noise2={n3}')
-    #         txt_legend.append(f'noise2={n3}')
-    #     plt.title("Noise Level 2 vs Mean Loss for different noise2 levels")
-    #     plt.xlabel("Noise Level 2")
-    #     plt.ylabel("Mean Loss")
-    #     plt.yscale('log')
-    #     plt.legend(txt_legend, loc = 'lower right')
-    #     plt.grid(True)
-    #     plt.savefig(os.path.join(config.DRIVE_PATH, f"{config.BACKBONE}/{config.TOTAL_PATH}/results_noise/noise1_vs_loss_case1_case2.png"))
-    #     plt.close()
 
    
 
 
-def save_simulated_annealing_results(step, avg_bits, mAP50, loss, cost_annealing, temp, subfolder, file_name='simulated_annealing.txt'):
+def save_simulated_annealing_results(step, avg_bits, mAP50, loss, cost_annealing, temp, subfolder, file_name='simulated_annealing.txt', path_yolov8n = None):
     # Construct the message to be saved
     message = f"{step} {avg_bits:.2f} {mAP50:.6f} {loss:.6f} {cost_annealing:.6f} {temp:.6f}\n"
 
-    os.makedirs(os.path.join(config.DRIVE_PATH, f"{config.BACKBONE}/{config.TOTAL_PATH}/model_opt/{subfolder}"), exist_ok=True)
+    if path_yolov8n is None:
+        os.makedirs(os.path.join(config.DRIVE_PATH, f"{config.BACKBONE}/{config.TOTAL_PATH}/model_opt/{subfolder}"), exist_ok=True)
+        save_file = os.path.join(config.DRIVE_PATH, f"{config.BACKBONE}/{config.TOTAL_PATH}/model_opt/{subfolder}/{file_name}")
+    else:
+        os.makedirs(os.path.join(path_yolov8n, f"model_opt/{subfolder}"), exist_ok=True)
+        save_file = os.path.join(path_yolov8n, f"model_opt/{subfolder}/{file_name}")
     # Open the file in append mode if it exists, or in write mode if it doesn't exist
-    with open(os.path.join(config.DRIVE_PATH, f"{config.BACKBONE}/{config.TOTAL_PATH}/model_opt/{subfolder}/{file_name}"), "a+") as file:
+    with open(save_file, "a+") as file:
         # Move the cursor to the start of the file to check if it's empty
         file.seek(0)
         # If the file is empty, write a header line
@@ -453,13 +465,20 @@ def save_simulated_annealing_results(step, avg_bits, mAP50, loss, cost_annealing
         # Append the current results
         file.write(message)
 
-def save_acceptance_prob(step, val_mAP, acceptance, num_params_to_change, subfolder, file_name='acceptance_prob.txt'):
+
+
+
+def save_acceptance_prob(step, val_mAP, acceptance, num_params_to_change, subfolder, file_name='acceptance_prob.txt', path_yolov8n = None):
     # Construct the message to be saved
     message = f"{step} {val_mAP:6f} {acceptance} {num_params_to_change}\n"
 
-    os.makedirs(os.path.join(config.DRIVE_PATH, f"{config.BACKBONE}/{config.TOTAL_PATH}/model_opt/{subfolder}"), exist_ok=True)
-    # Open the file in append mode if it exists, or in write mode if it doesn't exist
-    with open(os.path.join(config.DRIVE_PATH, f"{config.BACKBONE}/{config.TOTAL_PATH}/model_opt/{subfolder}/{file_name}"), "a+") as file:
+    if path_yolov8n is None:
+        os.makedirs(os.path.join(config.DRIVE_PATH, f"{config.BACKBONE}/{config.TOTAL_PATH}/model_opt/{subfolder}"), exist_ok=True)
+        save_file = os.path.join(config.DRIVE_PATH, f"{config.BACKBONE}/{config.TOTAL_PATH}/model_opt/{subfolder}/{file_name}")
+    else:
+        os.makedirs(os.path.join(path_yolov8n, f"model_opt/{subfolder}"), exist_ok=True)
+        save_file = os.path.join(path_yolov8n, f"model_opt/{subfolder}/{file_name}")    # Open the file in append mode if it exists, or in write mode if it doesn't exist
+    with open(save_file, "a+") as file:
         # Move the cursor to the start of the file to check if it's empty
         file.seek(0)
         # If the file is empty, write a header line
@@ -468,7 +487,7 @@ def save_acceptance_prob(step, val_mAP, acceptance, num_params_to_change, subfol
         # Append the current results
         file.write(message)
 
-def plot_simulated_annealing_results(gamma, beta, alpha, subfolder, val_map_ini, avg_bits_ini, initial_mb, size_mb, lower_bound, result_name_file = 'simulated_annealing.txt'):
+def plot_simulated_annealing_results(gamma, beta, alpha, subfolder, val_map_ini, avg_bits_ini, initial_mb, size_mb, lower_bound, result_name_file = 'simulated_annealing.txt', path_yolov8n = None):
     steps = []
     avg_bits = []
     mAP_50 = []
@@ -480,8 +499,14 @@ def plot_simulated_annealing_results(gamma, beta, alpha, subfolder, val_map_ini,
     acceptance_boolean_array = []
     num_params_to_change = []
 
+    if path_yolov8n is None:
+        results_file = os.path.join(config.DRIVE_PATH, f"{config.BACKBONE}/{config.TOTAL_PATH}/model_opt/{subfolder}/{result_name_file}")
+        save_figs = os.path.join(config.DRIVE_PATH, f"{config.BACKBONE}/{config.TOTAL_PATH}/model_opt/{subfolder}")
+    else:
+        results_file = os.path.join(path_yolov8n, f"model_opt/{subfolder}/{result_name_file}")
+        save_figs = os.path.join(path_yolov8n, f"model_opt/{subfolder}")
 
-    with open(os.path.join(config.DRIVE_PATH, f"{config.BACKBONE}/{config.TOTAL_PATH}/model_opt/{subfolder}/{result_name_file}")) as f:
+    with open(results_file) as f:
         i = 0
         for line in f.readlines():
             if i!=0:
@@ -495,8 +520,13 @@ def plot_simulated_annealing_results(gamma, beta, alpha, subfolder, val_map_ini,
 
             i += 1
     # Verify if exists acceptance probability
-    if os.path.exists(os.path.join(config.DRIVE_PATH, f"{config.BACKBONE}/{config.TOTAL_PATH}/model_opt/{subfolder}/acceptance_prob.txt")):
-        with open(os.path.join(config.DRIVE_PATH, f"{config.BACKBONE}/{config.TOTAL_PATH}/model_opt/{subfolder}/acceptance_prob.txt")) as f:
+    if path_yolov8n is None:
+        acceptance_file = os.path.join(config.DRIVE_PATH, f"{config.BACKBONE}/{config.TOTAL_PATH}/model_opt/{subfolder}/acceptance_prob.txt")
+    else:
+        acceptance_file = os.path.join(path_yolov8n, f"model_opt/{subfolder}/acceptance_prob.txt")
+
+    if os.path.exists(acceptance_file):
+        with open(acceptance_file) as f:
             i = 0
             for line in f.readlines():
                 if i!=0:
@@ -533,18 +563,19 @@ def plot_simulated_annealing_results(gamma, beta, alpha, subfolder, val_map_ini,
     # Añadir la leyenda
     plt.legend(handles=legend_elements, loc='lower right', fontsize=12)
     plt.grid(True)
-    plt.savefig(os.path.join(config.DRIVE_PATH, f"{config.BACKBONE}/{config.TOTAL_PATH}/model_opt/{subfolder}/steps_vs_mAP50.png"))
+    plt.savefig(os.path.join(save_figs, f"steps_vs_mAP50.png"))
     plt.close()
 
-    plt.figure(figsize=(10, 6))
-    plt.plot(range(len(steps)), mean_loss, linestyle='-', color='b')
-    plt.title("Steps Bits vs Loss")
-    plt.xlabel("Steps")
-    plt.ylabel("Mean Loss")
-    plt.yscale('log')
-    plt.grid(True)
-    plt.savefig(os.path.join(config.DRIVE_PATH, f"{config.BACKBONE}/{config.TOTAL_PATH}/model_opt/{subfolder}/steps_vs_loss.png"))
-    plt.close()
+    if sum(mean_loss) != 0:
+        plt.figure(figsize=(10, 6))
+        plt.plot(range(len(steps)), mean_loss, linestyle='-', color='b')
+        plt.title("Steps Bits vs Loss")
+        plt.xlabel("Steps")
+        plt.ylabel("Mean Loss")
+        plt.yscale('log')
+        plt.grid(True)
+        plt.savefig(os.path.join(save_figs, f"steps_vs_loss.png"))
+        plt.close()
 
     plt.figure(figsize=(10, 6))
     plt.plot(range(len(steps)), mean_cost_annealing, linestyle='-', color='b')
@@ -553,7 +584,7 @@ def plot_simulated_annealing_results(gamma, beta, alpha, subfolder, val_map_ini,
     plt.ylabel("Mean Cost Annealing")
     plt.legend([rf"$\gamma$={gamma}, $\beta$={beta}, $\alpha$={alpha}"])
     plt.grid(True)
-    plt.savefig(os.path.join(config.DRIVE_PATH, f"{config.BACKBONE}/{config.TOTAL_PATH}/model_opt/{subfolder}/steps_vs_cost_annealing.png"))
+    plt.savefig(os.path.join(save_figs, f"steps_vs_cost_annealing.png"))
     plt.close()
 
     # Crear un colormap que vaya de rojo a azul
@@ -569,7 +600,7 @@ def plot_simulated_annealing_results(gamma, beta, alpha, subfolder, val_map_ini,
     plt.xlabel("Steps")
     plt.ylabel("Mean Temperature")
     plt.grid(True)
-    plt.savefig(os.path.join(config.DRIVE_PATH, f"{config.BACKBONE}/{config.TOTAL_PATH}/model_opt/{subfolder}/steps_vs_temp.png"))
+    plt.savefig(os.path.join(save_figs, f"steps_vs_temp.png"))
     plt.close()
 
     # plot avg bits
@@ -579,7 +610,7 @@ def plot_simulated_annealing_results(gamma, beta, alpha, subfolder, val_map_ini,
     plt.xlabel("Steps")
     plt.ylabel("Average Bits")
     plt.grid(True)
-    plt.savefig(os.path.join(config.DRIVE_PATH, f"{config.BACKBONE}/{config.TOTAL_PATH}/model_opt/{subfolder}/steps_vs_avg_bits.png"))
+    plt.savefig(os.path.join(save_figs, f"steps_vs_avg_bits.png"))
     plt.close()
 
     # plot of a histogram of the number of parameters to change
@@ -589,7 +620,7 @@ def plot_simulated_annealing_results(gamma, beta, alpha, subfolder, val_map_ini,
     plt.xlabel("Steps")
     plt.ylabel("Number of parameters to change")
     plt.grid(True)
-    plt.savefig(os.path.join(config.DRIVE_PATH, f"{config.BACKBONE}/{config.TOTAL_PATH}/model_opt/{subfolder}/hist_num_params_to_change.png"))
+    plt.savefig(os.path.join(save_figs, f"steps_vs_num_params_to_change.png"))
     plt.close()
 
     
@@ -602,6 +633,8 @@ def plot_simulated_annealing_results(gamma, beta, alpha, subfolder, val_map_ini,
     axs[0].set_title("mAP@50")
     axs[0].set_xlabel("Steps")
     axs[0].set_ylabel("Mean Average Precision")
+    if min(mAP_50) > 0.5:
+        axs[0].set_ylim(min(mAP_50)*0.9, 1)
     # Legend
     axs[0].legend([f'Initial mAP@50: {val_map_ini:.3f} Full Precision Avg Bits: {avg_bits_ini:.2f} \nFinal mAP@50: {mAP_50[-1]:.3f} Avg Bits: {avg_bits[-1]:.2f} \n {initial_mb:1.3f} MB -> {size_mb:1.3f} MB', f'Threshold mAP@50: {lower_bound:.3f}'], loc='lower right', fontsize=8)
     axs[0].grid(True)
@@ -638,14 +671,12 @@ def plot_simulated_annealing_results(gamma, beta, alpha, subfolder, val_map_ini,
     axs[4].grid(True)
 
 
-    
-
     # Adjust layout
     plt.tight_layout()
-    plt.savefig(os.path.join(config.DRIVE_PATH, f"{config.BACKBONE}/{config.TOTAL_PATH}/model_opt/{subfolder}/summary_metrics.png"))
+    plt.savefig(os.path.join(save_figs, f"summary_metrics.png"))
     plt.close()  # Close the plot to ensure it doesn't interfere with the next one
 
-def save_final_state(layers_of_interest, n_int, state_frac, subfolder, file_name='final_precision_weights.txt'):
+def save_final_state(layers_of_interest, n_int, state_frac, subfolder, file_name='final_precision_weights.txt', path_yolov8n=None):
     # Construct the message to be saved
     message = ""
 
@@ -653,10 +684,16 @@ def save_final_state(layers_of_interest, n_int, state_frac, subfolder, file_name
         max_value = 2**(n_int[i]-1) - 1 + 2**(-state_frac[i])
         min_value = -2**(n_int[i]-1) + 2**(-state_frac[i])        
         message += f"{layers_of_interest[i]}: ({n_int[i]},{state_frac[i]}), Range: [{min_value}, {max_value}]\n"
+    
+    if path_yolov8n is None:
+        os.makedirs(os.path.join(config.DRIVE_PATH, f"{config.BACKBONE}/{config.TOTAL_PATH}/model_opt/{subfolder}"), exist_ok=True)
+        save_file = os.path.join(config.DRIVE_PATH, f"{config.BACKBONE}/{config.TOTAL_PATH}/model_opt/{subfolder}/{file_name}")
+    else:
+        os.makedirs(os.path.join(path_yolov8n, f"model_opt/{subfolder}"), exist_ok=True)
+        save_file = os.path.join(path_yolov8n, f"model_opt/{subfolder}/{file_name}")
 
-    os.makedirs(os.path.join(config.DRIVE_PATH, f"{config.BACKBONE}/{config.TOTAL_PATH}/model_opt/{subfolder}"), exist_ok=True)
     # Open the file in append mode if it exists, or in write mode if it doesn't exist
-    with open(os.path.join(config.DRIVE_PATH, f"{config.BACKBONE}/{config.TOTAL_PATH}/model_opt/{subfolder}/{file_name}"), "a+") as file:
+    with open((save_file), "a+") as file:
         # Move the cursor to the start of the file to check if it's empty
         file.seek(0)
         # If the file is empty, write a header line
@@ -666,13 +703,19 @@ def save_final_state(layers_of_interest, n_int, state_frac, subfolder, file_name
         file.write(message)
 
 
-def save_history_state(state_frac, subfolder, file_name='history_precision_weights.txt'):
+def save_history_state(state_frac, subfolder, file_name='history_precision_weights.txt', path_yolov8n=None):
     # Construct the message to be saved
     message = ""
 
-    os.makedirs(os.path.join(config.DRIVE_PATH, f"{config.BACKBONE}/{config.TOTAL_PATH}/model_opt/{subfolder}"), exist_ok=True)
+    if path_yolov8n is None:
+        os.makedirs(os.path.join(config.DRIVE_PATH, f"{config.BACKBONE}/{config.TOTAL_PATH}/model_opt/{subfolder}"), exist_ok=True)
+        save_file = os.path.join(config.DRIVE_PATH, f"{config.BACKBONE}/{config.TOTAL_PATH}/model_opt/{subfolder}/{file_name}")
+    else:
+        os.makedirs(os.path.join(path_yolov8n, f"model_opt/{subfolder}"), exist_ok=True)
+        save_file = os.path.join(path_yolov8n, f"model_opt/{subfolder}/{file_name}")
+
     # Open the file in append mode if it exists, or in write mode if it doesn't exist
-    with open(os.path.join(config.DRIVE_PATH, f"{config.BACKBONE}/{config.TOTAL_PATH}/model_opt/{subfolder}/{file_name}"), "a+") as file:        # Move the cursor to the start of the file to check if it's empty
+    with open((save_file), "a+") as file:        # Move the cursor to the start of the file to check if it's empty
         txt = ''
         for i in state_frac:
             txt += f'|{i}'.ljust(3)

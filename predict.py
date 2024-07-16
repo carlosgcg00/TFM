@@ -25,15 +25,13 @@ import time
 import cv2
 from tqdm import tqdm
 
-def plot_image_with_pil_(image, boxes):
+def plot_image_with_pil_(image, boxes, colors = None):
     """Edit the image to draw bounding boxes using PIL but does not show or save the image."""
-    if config.DATASET == "Airbus" or config.DATASET == "reduceAirbus" or config.DATASET == 'Airbus_256':
-        class_labels = config.AIRBUS_LABELS
-    elif config.DATASET == "PASCAL":
-        class_labels = config.PASCAL_LABELS
+    class_labels = config.AIRBUS_LABELS
     # Define colores utilizando PIL
     num_classes = len(class_labels)
-    colors = config.colors[:num_classes]
+    if colors is None:
+        colors = config.colors[:num_classes]
     draw = ImageDraw.Draw(image)
     width, height = image.size
     for box in boxes:
@@ -46,7 +44,7 @@ def plot_image_with_pil_(image, boxes):
         upper_left_y = (y - h / 2) * height
         lower_right_x = (x + w / 2) * width
         lower_right_y = (y + h / 2) * height
-        draw.rectangle([upper_left_x, upper_left_y, lower_right_x, lower_right_y], outline=colors[class_pred], width=3)
+        draw.rectangle([upper_left_x, upper_left_y, lower_right_x, lower_right_y], outline=colors[class_pred], width=5)
         draw.text((upper_left_x, upper_left_y), f'{confidence_score:.2f} {class_labels[class_pred]}', fill=colors[class_pred], font=ImageFont.truetype("font_text/04B_08__.TTF", 20))
     return image
 
@@ -122,10 +120,23 @@ def process_large_image(model, img_path, file_name, tile_size=256, overlap=0.2, 
     image = Image.open(img_path).convert("RGB")
     width, height = image.size
     stride = int(tile_size * (1 - overlap))
-    
+    base_name = os.path.splitext(file_name)[0]
+    if not boolean_optim:
+        os.makedirs(os.path.join(config.DRIVE_PATH, config.BACKBONE, config.TOTAL_PATH, 'test'), exist_ok=True)
+        output_path = os.path.join(config.DRIVE_PATH, config.BACKBONE, config.TOTAL_PATH, 'test', base_name + '_predicted.jpg')
+        video_output_path = os.path.join(config.DRIVE_PATH, config.BACKBONE, config.TOTAL_PATH, 'test', base_name + '_video.avi')
+    else:
+        os.makedirs(os.path.join(config.DRIVE_PATH, config.BACKBONE, config.TOTAL_PATH, 'model_opt', path_opt_model, 'test'), exist_ok=True)
+        output_path = os.path.join(config.DRIVE_PATH, config.BACKBONE, config.TOTAL_PATH, 'model_opt', path_opt_model, 'test', base_name + '_predicted.jpg')
+        video_output_path = os.path.join(config.DRIVE_PATH, config.BACKBONE, config.TOTAL_PATH, 'model_opt', path_opt_model, 'test', base_name + '_video.avi')
+
     all_bboxes = []
     tile_times = []
     start_time = time.time()
+    
+    # Preparar el vídeo
+    video_frames = []
+
     for y in range(0, height, stride):
         for x in range(0, width, stride):
             right = min(x + tile_size, width)
@@ -136,7 +147,10 @@ def process_large_image(model, img_path, file_name, tile_size=256, overlap=0.2, 
                 tile = Image.new('RGB', (tile_size, tile_size), (0, 0, 0))
                 tile.paste(image.crop((x, y, right, bottom)), (0, 0))
             
+            # output_tile_path = output_path.replace('.jpg', f'_{x}_{y}.jpg')
+            # bboxes, tile_time = do_prediction_tile(model, tile, output_tile_path)
             bboxes, tile_time = do_prediction_tile(model, tile)
+
             tile_times.append(tile_time)
             for bbox in bboxes:
                 # convert x_center of the tile to the x_center of the image
@@ -149,21 +163,46 @@ def process_large_image(model, img_path, file_name, tile_size=256, overlap=0.2, 
                 bbox[5] = bbox[5] * tile_size / height
                 
                 all_bboxes.append(bbox)
-    all_bboxes = non_max_suppression(all_bboxes, iou_threshold=0.4, threshold=0.4, box_format="midpoint")
-    end_time = time.time()
-    print(f"Inference large image, Time: {end_time - start_time} seconds, FPS: {1 / (end_time - start_time)}")
-    print(f"Average inference time per tile: {sum(tile_times)/len(tile_times):.6f} seconds")
-    image_predicted = plot_image_with_pil_(image, all_bboxes)
+            
+            # Crear un frame de la imagen con las predicciones actuales y la caja roja
+            current_predicted_image = image.copy()
+            draw = ImageDraw.Draw(current_predicted_image)
+            draw.rectangle([x, y, right, bottom], outline="red", width=4)
+            current_predicted_image = plot_image_with_pil_(current_predicted_image, all_bboxes)
+            frame = np.array(current_predicted_image)
+            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            video_frames.append(frame)
 
-    base_name = os.path.splitext(file_name)[0]
-    if not boolean_optim:
-        os.makedirs(os.path.join(config.DRIVE_PATH, config.BACKBONE, config.TOTAL_PATH, 'test'), exist_ok=True)
-        output_path = os.path.join(config.DRIVE_PATH, config.BACKBONE, config.TOTAL_PATH, 'test', base_name + '_predicted.jpg')
-    else:
-        os.makedirs(os.path.join(config.DRIVE_PATH, config.BACKBONE, config.TOTAL_PATH, 'model_opt', path_opt_model, 'test'), exist_ok=True)
-        output_path = os.path.join(config.DRIVE_PATH, config.BACKBONE, config.TOTAL_PATH, 'model_opt', path_opt_model, 'test', base_name + '_predicted.jpg')
+    all_bboxes = non_max_suppression(all_bboxes, iou_threshold=0.1, threshold=0.4, box_format="midpoint")
+    end_time = time.time()
+    total_time = end_time - start_time
+    average_tile_time = total_time / len(video_frames)
+    fps = 1 / average_tile_time
+    print(f"Inference large image, Time: {total_time} seconds, FPS: {fps}")
+    print(f"Average inference time per tile: {average_tile_time:.6f} seconds")
+    image_predicted = plot_image_with_pil_(image, all_bboxes, colors = ['blue'])
+
     print(f"Image saved in: {output_path}")
     image_predicted.save(output_path)
+
+    # Agregar el frame post-NMS al vídeo
+    final_frame = np.array(image_predicted)
+    final_frame = cv2.cvtColor(final_frame, cv2.COLOR_RGB2BGR)
+    video_frames.append(final_frame)
+
+    # Añadir copias del último frame para que dure más tiempo
+    extra_frames = int(fps * 3)  # 3 segundos de duración extra
+    for _ in range(extra_frames):
+        video_frames.append(final_frame)
+
+    # Guardar el vídeo
+    frame_height, frame_width, _ = video_frames[0].shape
+    out = cv2.VideoWriter(video_output_path, cv2.VideoWriter_fourcc(*'XVID'), fps / 2, (frame_width, frame_height))
+    for frame in video_frames:
+        out.write(frame)
+    out.release()
+
+    print(f"Video saved in: {video_output_path}")
     return image_predicted
 
 def process_large_frame(model, frame, tile_size=256, overlap=0.2):
@@ -253,13 +292,17 @@ def do_prediction_video(model, video_path, file_name, high_res=False, path_opt_m
     print(f"Average inference time per frame: {average_inference_time:.6f} seconds")
 
 
-def do_prediction_tile(model, image_tile):
+def do_prediction_tile(model, image_tile, output_tile_path=None):
     image_array, boxes = config.predict_transforms(image_tile, [])
     x = image_array.unsqueeze(0).to(config.DEVICE)
     start_time = time.time()
     bboxes = cellboxes_to_boxes(model(x))
     bboxes = non_max_suppression(bboxes[0], iou_threshold=0.5, threshold=0.3, box_format="midpoint")
     end_time = time.time()
+
+    if output_tile_path:
+        image_tile_predicted = plot_image_with_pil_(image_tile, bboxes)
+        image_tile_predicted.save(output_tile_path)
 
     return bboxes, end_time - start_time
 
@@ -293,6 +336,6 @@ def process_media(folder_test, files_to_test, path_opt_model=None, boolean_optim
 if __name__ == "__main__":
     folder_test = 'test'
     # files_to_test = ['Aeropuerto.mp4', 'large_image.jpg', 'img1.jpg', 'Barajas.jpg']
-    # files_to_test = ['img1.jpg']
-    files_to_test = os.listdir(folder_test)
+    files_to_test = ['babb0ef2-ef2d-4cab-b3e2-230ae2418cdc.jpg']
+    # files_to_test = os.listdir(folder_test)
     process_media(folder_test, files_to_test)

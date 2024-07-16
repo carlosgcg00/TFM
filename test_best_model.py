@@ -55,6 +55,7 @@ def load_model(path_opt_model=None, boolean_optim=False):
         print(f"Load: {os.path.join(config.DRIVE_PATH,f'{config.BACKBONE}/{config.TOTAL_PATH}/model/{best_model}')}")
     else:
         load_checkpoint(torch.load(os.path.join(config.DRIVE_PATH,f'{config.BACKBONE}/{config.TOTAL_PATH}/model_opt/{path_opt_model}/YOLO_opt.pth.tar')), model, optimizer)
+        print(f"Load: {os.path.join(config.DRIVE_PATH,f'{config.BACKBONE}/{config.TOTAL_PATH}/model_opt/{path_opt_model}/YOLO_opt.pth.tar')}")
     model.eval()
     return model
 
@@ -70,8 +71,7 @@ def do_prediction_tile(model, image_tile, iou_threshold=0.5, threshold=0.4):
 
 def plot_image_with_pil_(image, pred_boxes, true_boxes=None):
     """Edit the image to draw bounding boxes using PIL but does not show or save the image."""
-    if config.DATASET == 'Airbus_256':
-        class_labels = config.AIRBUS_LABELS
+    class_labels = config.AIRBUS_LABELS
 
     # Define colores utilizando PIL
     num_classes = len(class_labels)
@@ -103,14 +103,16 @@ def plot_image_with_pil_(image, pred_boxes, true_boxes=None):
                 upper_left_y = (y - h / 2) * height
                 lower_right_x = (x + w / 2) * width
                 lower_right_y = (y + h / 2) * height
-                draw.rectangle([upper_left_x, upper_left_y, lower_right_x, lower_right_y], outline='yellow', width=5)
+                draw.rectangle([upper_left_x, upper_left_y, lower_right_x, lower_right_y], outline='red', width=5)
     return image
 
-def get_bboxes_test(model, test_loader, tile_size = 256, overlap = 0.2, threshold = 0.4, iou_threshold = 0.4):
+def get_bboxes_test(model, test_loader, tile_size = 256, overlap = 0.2, threshold = 0.4, iou_threshold = 0.4, path_opt_model=None, boolean_optim=False):
     model.eval()
     all_pred_boxes = []
     all_true_boxes = []
     loop = tqdm(test_loader, total=len(test_loader), leave=True)
+    image_times = []
+    tile_times = []
     for idx, (x, labels) in enumerate(loop):
         x = x.to(config.DEVICE)
         image = v2.ToPILImage()(x.view(3, 2560, 2560))
@@ -118,10 +120,11 @@ def get_bboxes_test(model, test_loader, tile_size = 256, overlap = 0.2, threshol
         stride = int(tile_size * (1 - overlap))
         
         all_bboxes = []
-        tile_times = []
         start_time = time.time()
+        n_tiles = 0 
         for y in range(0, height, stride):
             for x in range(0, width, stride):
+                n_tiles += 1
                 right = min(x + tile_size, width)
                 bottom = min(y + tile_size, height)
                 tile = image.crop((x, y, right, bottom))
@@ -144,6 +147,7 @@ def get_bboxes_test(model, test_loader, tile_size = 256, overlap = 0.2, threshol
                     all_bboxes.append(bbox)
         all_bboxes = non_max_suppression(all_bboxes, iou_threshold=iou_threshold, threshold=threshold, box_format="midpoint")
         end_time = time.time()
+        image_times.append(end_time - start_time)
         true_bboxes = cellboxes_to_boxes_test(labels, SPLIT_SIZE = 100, NUM_BOXES=2, NUM_CLASSES=config.NUM_CLASSES)
         for nms_box in all_bboxes:
             all_pred_boxes.append([idx] + nms_box)
@@ -151,12 +155,17 @@ def get_bboxes_test(model, test_loader, tile_size = 256, overlap = 0.2, threshol
             # many will get converted to 0 pred
             if box[1] > threshold:
                 all_true_boxes.append([idx] + box)
+
         image_predicted = plot_image_with_pil_(image, all_bboxes, true_bboxes[0])
-        os.makedirs(os.path.join(config.DRIVE_PATH, config.BACKBONE, config.TOTAL_PATH, 'test'), exist_ok=True)
-        output_path = os.path.join(config.DRIVE_PATH, config.BACKBONE, config.TOTAL_PATH, 'test', f'{idx}' + '_predicted.jpg')
+        if not boolean_optim: 
+            os.makedirs(os.path.join(config.DRIVE_PATH, config.BACKBONE, config.TOTAL_PATH, 'test'), exist_ok=True)
+            output_path = os.path.join(config.DRIVE_PATH, config.BACKBONE, config.TOTAL_PATH, 'test', f'{idx}' + '_predicted.jpg')
+        else:
+            os.makedirs(os.path.join(config.DRIVE_PATH,f'{config.BACKBONE}/{config.TOTAL_PATH}/model_opt/{path_opt_model}', 'test'), exist_ok=True)
+            output_path = os.path.join(config.DRIVE_PATH,f'{config.BACKBONE}/{config.TOTAL_PATH}/model_opt/{path_opt_model}', 'test', f'{idx}' + '_predicted.jpg')
         image_predicted.save(output_path) 
-    print(f"Inference large image, Time: {end_time - start_time} seconds, FPS: {1 / (end_time - start_time)}")
-    print(f"Average inference time per tile: {sum(tile_times)/len(tile_times):.6f} seconds")
+    print(f"Inference large image, Time: {sum(image_times)/len(image_times):.3f} seconds, FPS: {1 / sum(image_times)/len(image_times)}")
+    print(f"Average inference time per tile: {sum(tile_times)/len(tile_times):.6f} seconds, Time Tiles * n_tiles: {n_tiles*sum(tile_times)/len(tile_times):.3f}")
  
 
     return all_pred_boxes, all_true_boxes
@@ -164,13 +173,13 @@ def get_bboxes_test(model, test_loader, tile_size = 256, overlap = 0.2, threshol
     
 
 
-def test_prediction(tile_size=256, overlap=0.2, threshold=0.4, iou_threshold=0.4):
-    model = load_model()
+def test_prediction(tile_size=256, overlap=0.2, threshold=0.4, iou_threshold=0.4, path_opt_model=None, boolean_optim=False):
+    model = load_model(path_opt_model=path_opt_model, boolean_optim=boolean_optim)
     test_loader = get_test_loader()
 
     model.eval()
     
-    pred_boxes, target_boxes = get_bboxes_test(model, test_loader, tile_size, overlap, threshold, iou_threshold)
+    pred_boxes, target_boxes = get_bboxes_test(model, test_loader, tile_size, overlap, threshold, iou_threshold, path_opt_model=path_opt_model, boolean_optim=boolean_optim)
     test_mAP50, test_mAP75, test_mAP90 = mean_average_precision(pred_boxes, target_boxes, iou_thresholds=[0.5, 0.75, 0.9], box_format="midpoint", num_classes=config.NUM_CLASSES, mode='Test')
 
     print(f"Tile size: {tile_size}, Overlap: {overlap}")

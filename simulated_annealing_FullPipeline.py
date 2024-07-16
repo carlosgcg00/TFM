@@ -50,13 +50,13 @@ warnings.filterwarnings("ignore", category=UserWarning, module='torchvision.mode
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 # ----------------------------USER DEFINED
-simulations = 1  # Nº of simulations. Set >1 if want multiple cuantization results.
+simulations = 5  # Nº of simulations. Set >1 if want multiple cuantization results.
 Max_steps = 100  # Steps of Simulated Annealing convergence algorithm.
 
 global interval
 interval = (
     4,
-    8,
+    10,
 )  # Search range when simulating the quantification of the fractional part of the parameters.
 max_degradation = 5  # Reference based on maximum network accuracy operating in float32 format
 
@@ -68,7 +68,7 @@ max_degradation = 5  # Reference based on maximum network accuracy operating in 
 # Cost function=gamma*((lower_bound-mAP50)**2) + beta*avg_bits -alpha*lower_bound
 alpha = 0.1  # penalization for lower_bound
 beta = 10     # penalization for avg_bits
-gamma = 2   # penalization for the difference btwd lower_bound y mAP50
+gamma = 10   # penalization for the difference btwd lower_bound y mAP50
 
 # ---------------------------/Convergence guidance hyperparameters
 # ----------------------------/USER DEFINED
@@ -84,7 +84,7 @@ def load_model():
         model = tinyissimoYOLO(split_size=config.SPLIT_SIZE, num_boxes=config.NUM_BOXES, num_classes=config.NUM_CLASSES).to(config.DEVICE)
     elif config.BACKBONE == 'ext_tinyissimoYOLO':
         model = ext_tinyissimoYOLO(split_size=config.SPLIT_SIZE, num_boxes=config.NUM_BOXES, num_classes=config.NUM_CLASSES).to(config.DEVICE)
-    elif config.BACKBONE == 'bed_model':
+    elif config.BACKBONE == 'bedmodel':
         model = bedmodel(split_size=config.SPLIT_SIZE, num_boxes=config.NUM_BOXES, num_classes=config.NUM_CLASSES).to(config.DEVICE)
     elif config.BACKBONE == 'Yolov1':
         model = Yolov1(split_size=config.SPLIT_SIZE, num_boxes=config.NUM_BOXES, num_classes=config.NUM_CLASSES).to(config.DEVICE)

@@ -89,7 +89,7 @@ class GaussianBlur(object):
 
     def __call__(self, img, bboxes):
         if random.random() < self.p:
-            img = v2.GaussianBlur(kernel_size=5)(img)
+            img = v2.GaussianBlur(kernel_size=5, sigma=5)(img)
         return img, bboxes
 
 class Normalize(object):
@@ -110,10 +110,6 @@ class toTensor(object):
         img = v2.ToDtype(torch.float32, scale=True)(img)
         return img, bboxes
     
-class toPILObj(object):
-    def __call__(self, img, bboxes):
-        img = v2.ToPILImage()(img)
-        return img, bboxes
 
 class RandomRotation(object):
     def __init__(self, degrees=0, p=0.5):

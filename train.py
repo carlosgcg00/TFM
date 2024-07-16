@@ -41,10 +41,10 @@ import io
 import warnings
 
 
-# seed = 123
-# torch.manual_seed(seed)
+seed = 123
+torch.manual_seed(seed)
 
-seed_everything()
+
    
 
 def train_fn(train_loader, model, optimizer, scheduler, loss_fn, initial_epoch, epoch):

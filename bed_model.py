@@ -15,7 +15,7 @@ class CNNBlock(nn.Module):
         # BatchNorm2d applies Batch Normalization over a 4D input (a mini-batch of 2D inputs with additional channel dimension)
         self.batchnorm = nn.BatchNorm2d(out_channels) 
         # nn.LeakyReLU(negative_slope=0.01, inplace=False)
-        # LeakyReLU applies the element-wise function Leaky ReLU(x) = max(0,    x) + negative_slope * min(0, x)
+        # LeakyReLU applies the element-wise function Leaky ReLU(x) = max(0, x) + negative_slope * min(0, x)
         self.leakyrelu = nn.LeakyReLU(0.1)
         # Forward pass of the CNNBlock
         if initialize:
