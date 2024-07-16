@@ -1,13 +1,11 @@
-import cv2
 import torch
 import os
-import datatrans
-# import albumentations as A
-# from albumentations.pytorch import ToTensorV2
+import sys
+# Custom imports
+from utils import datatrans as datatrans
 import warnings
 
 warnings.filterwarnings("ignore", message="torch.utils._pytree._register_pytree_node is deprecated")
-# Filtra advertencias de deprecación específicas
 warnings.filterwarnings("ignore", category=UserWarning, module='transformers.utils.generic')
 warnings.filterwarnings("ignore", category=UserWarning, module='torchvision.models._utils')
 
@@ -17,9 +15,8 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 ######################################
 #              DATASET               #
 ######################################
-# DRIVE_PATH = "/home/jovyan/Carlos_Gonzalez/YOLO"
-DRIVE_PATH = os.getcwd()
-DATASET = 'Airbus_256'  # PASCAL (20 classes)
+ROOT_DIR = os.getcwd()
+DATASET = 'Airbus_640'  # PASCAL (20 classes)
                     # WiderFace (1 class) 
                     # PASCAL_3classes (3 classes) (for TinyisssimoYOLO like in the paper)
                     # reducePASCAL (1 class) (To force overfitting)
@@ -27,8 +24,8 @@ DATASET = 'Airbus_256'  # PASCAL (20 classes)
                     # Airbus_640 (1 class)
                     # Airbus_256 (1 class) (256x256 images)
                     # reduceAirbus (1 class) (To force overfitting)
-IMG_DIR = os.path.join(DRIVE_PATH, 'Datasets',DATASET + "/images")
-LABEL_DIR = os.path.join(DRIVE_PATH, 'Datasets', DATASET + "/labels")
+IMG_DIR = os.path.join(ROOT_DIR, 'Datasets',DATASET + "/images")
+LABEL_DIR = os.path.join(ROOT_DIR, 'Datasets', DATASET + "/labels")
 
 ######################################
 #           HYPERPARAMETER           #
@@ -37,7 +34,7 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 BATCH_SIZE = 32 # 64
 WEIGHT_DECAY = 5e-4 # 5e-4 in original paper
 L1_LAMBDA = 0.001 # To avoid overfitting
-EPOCHS = 40
+EPOCHS = 20
 NUM_WORKERS = 4
 OPTIMIZER = 'NAdam'  # 'Adam'
                     # 'SGD'
@@ -61,7 +58,7 @@ LOAD_MODEL = False
 ######################################
 #              BACKBONE              #
 ######################################
-BACKBONE = 'tinyissimoYOLO'  # 'resnet50'
+BACKBONE = 'yolov8n'  # 'resnet50'
                     # 'vgg16'
                     # 'efficientnet'
                     # 'tinyissimoYOLO'
@@ -138,7 +135,6 @@ else:
 #                PATH                #
 ######################################
 TOTAL_PATH = f"{OPTIMIZER}_{LR_SCHEDULER}_{DATASET}_BATCH_{BATCH_SIZE}_LR_{INIT_lr}"
-
 ######################################
 #           TRANSFORMATIONS          #
 ######################################
@@ -169,104 +165,11 @@ test_transform = datatrans.Compose([
 ])
 
 
-    
+
+if 'Airbus' in DATASET:
+    LABELS = ['Airplane']
+elif 'Pascal' in DATASET:
+    LABELS = ['aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car', 'cat', 'chair', 'cow', 'diningtable', 'dog', 'horse', 'motorbike', 'person', 'pottedplant', 'sheep', 'sofa', 'train', 'tvmonitor']
 
 
-# This is only for the convolutional layers
-architecture_tinyissimo_YOLO = [
-    # Tuple: (kernel_size, num_filters, stride, padding)
-    # ReLU activation is assumed after each convolutional layer
-    [(3,16,1,1),2],
-    "M",            # Max pooling with 2x2 filters, stride 2 (implied)
-    (3, 16, 1, 1),  # Another conv. layer with 3x3 filters, 16 filters, stride 1, padding 1
-    (3, 32, 1, 1),  # Another conv. layer with 3x3 filters, 16 filters, stride 1, padding 1
-    "M",            # Max pooling again
-    (3, 32, 1, 1),  # Conv. layer, 3x3 filters, 32 filters, stride 1, padding 1
-    (3, 64, 1, 1),  # Conv. layer, 3x3 filters, 32 filters, stride 1, padding 1
-    "M",            # Max pooling
-    [(3, 64, 1, 1),2],  # Conv. layer, 3x3 filters, 64 filters, stride 1, padding 1
-    "M",            # Max pooling
-    (3, 128, 1, 1), # Conv. layer, 3x3 filters, 128 filters, stride 1, padding 1
-    (3, 128, 1, 3), # Conv. layer, 3x3 filters, 128 filters, stride 1, padding 1
-    "M",            # Max pooling
-]
-
-# This is only for the convolutional layers
-architecture_ext_tinyissimo_YOLO = [
-    # Tuple: (kernel_size, num_filters, stride, padding)
-    # ReLU activation is assumed after each convolutional layer
-    (3,4,1,1),     # Conv. layer with 3x3 filters, 4 filters, stride 1, padding 1
-    (3,4,1,1),     # Conv. layer with 3x3 filters, 4 filters, stride 1, padding 1
-    "M",            # Max pooling with 2x2 filters, stride 2 (implied)
-    (3, 4, 1, 1),  # Another conv. layer with 3x3 filters, 8 filters, stride 1, padding 1
-    (3, 8, 1, 1),  # Another conv. layer with 3x3 filters, 16 filters, stride 1, padding 1
-    "M",            # Max pooling with 2x2 filters, stride 2 (implied)
-    (3, 8, 1, 1),  # Another conv. layer with 3x3 filters, 8 filters, stride 1, padding 1
-    (3, 16, 1, 1),  # Another conv. layer with 3x3 filters, 16 filters, stride 1, padding 1
-    "M",            # Max pooling again
-    (3, 16, 1, 1),  # Another conv. layer with 3x3 filters, 16 filters, stride 1, padding 1
-    (3, 32, 1, 1),  # Another conv. layer with 3x3 filters, 16 filters, stride 1, padding 1
-    "M",            # Max pooling again
-    (3, 32, 1, 1),  # Conv. layer, 3x3 filters, 32 filters, stride 1, padding 1
-    (3, 64, 1, 1),  # Conv. layer, 3x3 filters, 32 filters, stride 1, padding 1
-    "M",            # Max pooling
-    [(3, 64, 1, 1),2],  # Conv. layer, 3x3 filters, 64 filters, stride 1, padding 1
-    "M",            # Max pooling
-    (3, 128, 1, 1), # Conv. layer, 3x3 filters, 128 filters, stride 1, padding 1
-    (3, 128, 1, 3), # Conv. layer, 3x3 filters, 128 filters, stride 1, padding 1
-    "M",            # Max pooling
-]
-
-
-architecture_bed = [
-    (3,64,1,1),       # Conv. 3x3, 64 filters
-    "M",               # Max pooling
-    (3,24,1,1),       # Conv. 3x3, 24 filters
-    "M",               # Max pooling
-    (3,16,1,1),       # Conv. 3x3, 24 filters
-    (3,32,1,1),       # Conv. 3x3, 32 filters
-    (3,32,1,1),       # Conv. 3x3, 32 filters
-    (3,64,1,1),       # Conv. 3x3, 64 filters
-    "M",               # Max pooling
-    [(3, 32, 1, 1),(3, 64, 1, 1),3], # Conv. 3x3, 32 filters, Conv. 3x3, 64 filters, 3 times
-    "M",               # Max pooling
-    [(3, 32, 1, 1),(3, 64, 1, 1),2], # Conv. 3x3, 32 filters, Conv. 3x3, 64 filters, 3 times
-    (3, 64, 1, 1),   # Conv. 3x3, 64 filters
-    (3, 64, 1, 1),   # Conv. 3x3, 64 filters
-    "M",               # Max pooling
-    (3, 64, 1, 1),   # Conv. 3x3, 64 filters
-    (3, 64, 1, 1),   # Conv. 3x3, 64 filters
-    "M",               # Max pooling
-    (1, 64, 1, 0),   # Conv. 1x1, 64 filters
-    (1, 16, 1, 0),   # Conv. 1x1, 16 filters
-    (1, 16, 1, 0),   # Conv. 1x1, 16 filters
-    (1, 15, 1, 1),   # Conv. 1x1, 15 filters
-    (1, 15, 1, 1),   # Conv. 1x1, 15 filters
-]
-
-
-architecture_YOLOv1 = [
-    (7, 64, 2, 3),
-    "M",
-    (3, 192, 1, 1),
-    "M",
-    (1, 128, 1, 0),
-    (3, 256, 1, 1),
-    (1, 256, 1, 0),
-    (3, 512, 1, 1),
-    "M",
-    [(1, 256, 1, 0), (3, 512, 1, 1), 4],
-    (1, 512, 1, 0),
-    (3, 1024, 1, 1),
-    "M",
-    [(1, 512, 1, 0), (3, 1024, 1, 1), 2],
-    (3, 1024, 1, 1),
-    (3, 1024, 2, 1),
-    (3, 1024, 1, 1),
-    (3, 1024, 1, 1),
-]
-
-AIRBUS_LABELS = ['Airplane']
-PASCAL_LABELS = ['aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car', 'cat', 'chair', 'cow', 'diningtable', 'dog', 'horse', 'motorbike', 'person', 'pottedplant', 'sheep', 'sofa', 'train', 'tvmonitor']
-reduce_PASCAL_LABELS = ['car', 'person', 'chair']
 colors = ['yellow', 'green', 'red', 'blue', 'purple', 'orange', 'cyan', 'magenta', 'lime', 'pink', 'teal', 'lavender', 'brown', 'beige', 'maroon', 'mint', 'olive', 'coral', 'navy', 'grey', 'white', 'black'] 
